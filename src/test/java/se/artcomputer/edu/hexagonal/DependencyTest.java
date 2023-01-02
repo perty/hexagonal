@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class DependencyTest {
 
-    public static final String PACKAGE_ROOT = "se.artcomputer.edu.hexagonal";
+    public static final String PACKAGE_ROOT = DependencyTest.class.getPackageName();
     public static final String ADAPTER_OUT = PACKAGE_ROOT + ".adapter.out";
     public static final String PORT_OUT = PACKAGE_ROOT + ".application.port.out";
     public static final String DOMAIN = PACKAGE_ROOT + ".domain";
