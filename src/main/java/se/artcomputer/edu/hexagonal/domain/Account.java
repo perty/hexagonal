@@ -118,16 +118,7 @@ public class Account {
         return activityWindow;
     }
 
-    public static class AccountId {
-        private final Long value;
-
-        public AccountId(Long value) {
-            this.value = value;
-        }
-
-        public Long getValue() {
-            return value;
-        }
+    public record AccountId(Long value) {
     }
 
 }

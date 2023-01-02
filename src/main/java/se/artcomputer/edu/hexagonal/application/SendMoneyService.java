@@ -1,5 +1,7 @@
 package se.artcomputer.edu.hexagonal.application;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 import se.artcomputer.edu.hexagonal.application.port.in.SendMoneyCommand;
 import se.artcomputer.edu.hexagonal.application.port.in.SendMoneyUseCase;
 import se.artcomputer.edu.hexagonal.application.port.out.AccountLock;
@@ -9,6 +11,7 @@ import se.artcomputer.edu.hexagonal.domain.Account;
 
 import java.time.LocalDateTime;
 
+@Service
 public class SendMoneyService implements SendMoneyUseCase {
 
 	private final LoadAccountPort loadAccountPort;
@@ -16,7 +19,11 @@ public class SendMoneyService implements SendMoneyUseCase {
 	private final UpdateAccountStatePort updateAccountStatePort;
 	private final MoneyTransferProperties moneyTransferProperties;
 
-	public SendMoneyService(LoadAccountPort loadAccountPort, AccountLock accountLock, UpdateAccountStatePort updateAccountStatePort, MoneyTransferProperties moneyTransferProperties) {
+	@Autowired
+	public SendMoneyService(LoadAccountPort loadAccountPort,
+							AccountLock accountLock,
+							UpdateAccountStatePort updateAccountStatePort,
+							MoneyTransferProperties moneyTransferProperties) {
 		this.loadAccountPort = loadAccountPort;
 		this.accountLock = accountLock;
 		this.updateAccountStatePort = updateAccountStatePort;
@@ -31,11 +38,11 @@ public class SendMoneyService implements SendMoneyUseCase {
 		LocalDateTime baselineDate = LocalDateTime.now().minusDays(10);
 
 		Account sourceAccount = loadAccountPort.loadAccount(
-				command.getSourceAccountId(),
+				command.sourceAccountId(),
 				baselineDate);
 
 		Account targetAccount = loadAccountPort.loadAccount(
-				command.getTargetAccountId(),
+				command.targetAccountId(),
 				baselineDate);
 
 		Account.AccountId sourceAccountId = sourceAccount.getId()
@@ -44,13 +51,13 @@ public class SendMoneyService implements SendMoneyUseCase {
 				.orElseThrow(() -> new IllegalStateException("expected target account ID not to be empty"));
 
 		accountLock.lockAccount(sourceAccountId);
-		if (!sourceAccount.withdraw(command.getMoney(), targetAccountId)) {
+		if (!sourceAccount.withdraw(command.money(), targetAccountId)) {
 			accountLock.releaseAccount(sourceAccountId);
 			return false;
 		}
 
 		accountLock.lockAccount(targetAccountId);
-		if (!targetAccount.deposit(command.getMoney(), sourceAccountId)) {
+		if (!targetAccount.deposit(command.money(), sourceAccountId)) {
 			accountLock.releaseAccount(sourceAccountId);
 			accountLock.releaseAccount(targetAccountId);
 			return false;
@@ -65,8 +72,8 @@ public class SendMoneyService implements SendMoneyUseCase {
 	}
 
 	private void checkThreshold(SendMoneyCommand command) {
-		if(command.getMoney().isGreaterThan(moneyTransferProperties.getMaximumTransferThreshold())){
-			throw new ThresholdExceededException(moneyTransferProperties.getMaximumTransferThreshold(), command.getMoney());
+		if(command.money().isGreaterThan(moneyTransferProperties.getMaximumTransferThreshold())){
+			throw new ThresholdExceededException(moneyTransferProperties.getMaximumTransferThreshold(), command.money());
 		}
 	}
 
