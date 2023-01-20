@@ -27,7 +27,7 @@ public class DependencyTest {
     @BeforeAll
     static void beforeAll() throws IOException {
         collectedDependencies = new HashMap<>();
-        visitJavaFiles(new File("src/main/java"), collectedDependencies);
+        collectDependencies(new File("src/main/java"), collectedDependencies);
         dumpDependencies();
     }
 
@@ -41,26 +41,26 @@ public class DependencyTest {
 
     @Test
     void domain_must_not_depend_on_other_packages_in_the_system() {
-        assertDependencies(getPackages(DOMAIN), p -> p.startsWith(DOMAIN));
+        assertDependencies(DOMAIN, p -> p.startsWith(DOMAIN));
     }
 
     @Test
     void application_must_only_depend_on_domain() {
-        assertDependencies(getPackages(APPLICATION), p -> (p.startsWith(DOMAIN) || p.startsWith(APPLICATION)));
+        assertDependencies(APPLICATION, p -> (p.startsWith(DOMAIN) || p.startsWith(APPLICATION)));
     }
 
     @Test
     void adapter_out_must_only_depend_on_domain_and_port_out() {
-        assertDependencies(getPackages(ADAPTER_OUT), p -> p.startsWith(DOMAIN) || p.startsWith(PORT_OUT));
+        assertDependencies(ADAPTER_OUT, p -> p.startsWith(DOMAIN) || p.startsWith(PORT_OUT));
     }
 
     @Test
     void adapter_must_only_depend_on_domain_and_application() {
-        assertDependencies(getPackages(ADAPTER), p -> p.startsWith(DOMAIN) || p.startsWith(APPLICATION) || p.startsWith(ADAPTER));
+        assertDependencies(ADAPTER, p -> p.startsWith(DOMAIN) || p.startsWith(APPLICATION) || p.startsWith(ADAPTER));
     }
 
-    private static void assertDependencies(Set<String> currentPackages, Predicate<String> acceptedDependencies) {
-        for (String currentPackage : currentPackages) {
+    private static void assertDependencies(String packagePrefix, Predicate<String> acceptedDependencies) {
+        for (String currentPackage : getPackagesStartingWith(packagePrefix)) {
             Set<String> illicitInPackage = collectedDependencies.get(currentPackage).stream()
                     .filter(acceptedDependencies.negate())
                     .collect(Collectors.toSet());
@@ -68,29 +68,29 @@ public class DependencyTest {
         }
     }
 
-    private static Set<String> getPackages(String packagePrefix) {
+    private static Set<String> getPackagesStartingWith(String packagePrefix) {
         Set<String> packages = collectedDependencies.keySet().stream().filter(k -> k.startsWith(packagePrefix)).collect(Collectors.toSet());
         assertTrue(packages.size() > 0, "No packages found with prefix: " + packagePrefix);
         return packages;
     }
 
-    private static void visitJavaFiles(File current, Map<String, Set<String>> collectedDependencies) throws IOException {
+    private static void collectDependencies(File current, Map<String, Set<String>> collectedDependencies) throws IOException {
         if (current.isFile()) {
             if (current.getPath().endsWith("java")) {
-                String currentPackage = getJavaPackage(current);
+                String currentPackage = getJavaPackageOfFile(current);
                 Set<String> soFar = collectedDependencies.getOrDefault(currentPackage, new HashSet<>());
-                soFar.addAll(visitJavaFile(current));
+                soFar.addAll(dependenciesOfFile(current));
                 collectedDependencies.put(currentPackage, soFar);
             }
         }
         if (current.isDirectory()) {
             for (File f : Objects.requireNonNull(current.listFiles())) {
-                visitJavaFiles(f, collectedDependencies);
+                collectDependencies(f, collectedDependencies);
             }
         }
     }
 
-    private static Set<String> visitJavaFile(File current) throws IOException {
+    private static Set<String> dependenciesOfFile(File current) throws IOException {
         try (Stream<String> lines = Files.lines(current.toPath())) {
             return lines
                     .filter(s -> s.startsWith("import " + PACKAGE_ROOT))
@@ -99,7 +99,11 @@ public class DependencyTest {
         }
     }
 
-    private static String getJavaPackage(File current) throws IOException {
+    private static String extractDependency(String importStatement) {
+        return importStatement.substring("import ".length(), importStatement.lastIndexOf('.'));
+    }
+
+    private static String getJavaPackageOfFile(File current) throws IOException {
         try (Stream<String> lines = Files.lines(current.toPath())) {
             return lines
                     .filter(s -> s.startsWith("package " + PACKAGE_ROOT))
@@ -107,9 +111,5 @@ public class DependencyTest {
                     .map(s -> s.substring("package ".length(), s.indexOf(';')))
                     .orElse("");
         }
-    }
-
-    private static String extractDependency(String importStatement) {
-        return importStatement.substring("import ".length(), importStatement.lastIndexOf('.'));
     }
 }
